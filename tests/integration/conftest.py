@@ -1,7 +1,11 @@
 import asyncio
+import os
 import pytest
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
+from sqlalchemy.pool import NullPool
 
-from src.db.database import engine, init_db
+import src.db.database as _db
+from src.db.models import Base
 
 
 @pytest.fixture(scope="session")
@@ -10,18 +14,28 @@ def anyio_backend():
 
 
 @pytest.fixture(scope="session", autouse=True)
-def create_tables():
-    """Create all DB tables once before the test session starts.
+def setup_test_db():
+    """Create tables and swap the global engine/session-factory to NullPool.
 
-    Uses a plain asyncio.run() so the setup has its own short-lived event
-    loop that is fully torn down before anyio spins up per-test loops.
-    engine.dispose() flushes the pool so tests always open fresh connections
-    in their own event loops — prevents the "Future attached to a different
-    loop" / "operation in progress" cascade errors.
+    NullPool opens a fresh asyncpg connection per operation and closes it
+    immediately after — no connection is ever held in a pool between requests,
+    so there is no event-loop binding across tests and no
+    "another operation is in progress" / "Future attached to different loop"
+    errors.
     """
+    url = os.environ.get("DATABASE_URL", _db.DATABASE_URL)
 
-    async def _setup():
-        await init_db()
-        await engine.dispose()
+    async def _init():
+        tmp_engine = create_async_engine(url, poolclass=NullPool)
+        async with tmp_engine.begin() as conn:
+            await conn.run_sync(Base.metadata.create_all)
+        await tmp_engine.dispose()
 
-    asyncio.run(_setup())
+        # Patch the module globals so every FastAPI request that calls
+        # get_db() uses the NullPool engine for the rest of the test session.
+        _db.engine = create_async_engine(url, poolclass=NullPool)
+        _db.async_session = async_sessionmaker(
+            _db.engine, expire_on_commit=False, class_=AsyncSession
+        )
+
+    asyncio.run(_init())
