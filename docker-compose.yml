@@ -2,62 +2,49 @@ version: '3.8'
 
 services:
   db:
-    image: postgres:15-alpine
+    image: postgres:16-alpine
     container_name: research_postgres
     restart: always
-    # Added env_file so the healthcheck can see DB_USER
-    env_file: .env
     environment:
-      POSTGRES_USER: ${DB_USER}
-      POSTGRES_PASSWORD: ${DB_PASSWORD}
-      POSTGRES_DB: ${DB_NAME}
+      POSTGRES_USER: ${DB_USER:-javidan}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-password}
+      POSTGRES_DB: ${DB_NAME:-research_db}
     ports:
       - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
-      # Fix: Use standard POSTGRES_USER env var to avoid interpolation empty strings
-      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
-      interval: 5s
+      test: [ "CMD-SHELL", "pg_isready -U ${DB_USER:-javidan} -d ${DB_NAME:-research_db}" ]
+      interval: 10s
       timeout: 5s
       retries: 5
+      start_period: 10s
 
   backend:
-    build: .
+    build:
+      context: .
+      dockerfile: Dockerfile
     container_name: research_backend
     depends_on:
-      db:
-        condition: service_healthy
-    ports:
-      - '8000:8000'
+      db: { condition: service_healthy }
     env_file: .env
     environment:
-      - DATABASE_URL=${ASYNC_DATABASE_URL}
-      # Corrected: Only /app needed because your imports start with 'backend.' or 'src.'
-      - PYTHONPATH=/app
+      - DATABASE_URL=postgresql+asyncpg://${DB_USER:-javidan}:${DB_PASSWORD:-password}@db:5432/${DB_NAME:-research_db}
+    ports:
+      - "8000:8000"
     volumes:
       - .:/app
-      - chroma_data:/app/data/output
-    # Fix: Run from the root /app so it can find the 'config/' folder
-    working_dir: /app
-    command: python -m uvicorn backend.app:app --host 0.0.0.0 --port 8000
 
   frontend:
-    build: .
-    container_name: research_streamlit
+    build:
+      context: ./src/frontend
+      args:
+        NEXT_PUBLIC_API_URL: ${FRONTEND_API_URL:-http://localhost:8000}
+    container_name: research_frontend
+    ports:
+      - "3000:80"
     depends_on:
       - backend
-    ports:
-      - "8501:8501"
-    env_file: .env
-    environment:
-      - API_URL=http://backend:8000
-      - PYTHONPATH=/app
-    volumes:
-      - .:/app
-    working_dir: /app
-    command: streamlit run frontend/app.py --server.port 8501 --server.address 0.0.0.0
 
 volumes:
   postgres_data:
-  chroma_data:

@@ -1,0 +1,98 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="AutoImportSettings">
+    <option name="autoReloadType" value="SELECTIVE" />
+  </component>
+  <component name="ChangeListManager">
+    <list default="true" id="05ddb2d5-89e3-4a58-b308-d202f4cee6c6" name="Changes" comment="">
+      <change beforePath="$PROJECT_DIR$/.idea/.gitignore" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/.idea/.name" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/.idea/DeepResearchAssistant.iml" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/.idea/inspectionProfiles/Project_Default.xml" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/.idea/inspectionProfiles/profiles_settings.xml" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/.idea/misc.xml" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/.idea/modules.xml" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/.idea/vcs.xml" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/Dockerfile" beforeDir="false" afterPath="$PROJECT_DIR$/Dockerfile" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/README.md" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/backend/__init__.py" beforeDir="false" afterPath="$PROJECT_DIR$/src/config/__init__.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/backend/app.py" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/backend/core/__init__.py" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/backend/core/config.py" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/backend/core/utils.py" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/backend/db.py" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/backend/models/__init__.py" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/backend/models/schemas.py" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/backend/routers/__init__.py" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/backend/routers/chat.py" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/backend/routers/history.py" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/backend/routers/users.py" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/backend/services/__init__.py" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/backend/services/background_worker.py" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/config/__init__.py" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/config/model_config.yaml" beforeDir="false" afterPath="$PROJECT_DIR$/src/config/model_config.yaml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/config/prompt_templates.yaml" beforeDir="false" afterPath="$PROJECT_DIR$/src/config/prompt_templates.yaml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/docker-compose.yml" beforeDir="false" afterPath="$PROJECT_DIR$/docker-compose.yml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/__init__.py" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/app.js" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/pyproject.toml" beforeDir="false" afterPath="$PROJECT_DIR$/pyproject.toml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/requirements.txt" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/agent_interface/states.py" beforeDir="false" afterPath="$PROJECT_DIR$/src/agent_interface/states.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/agents/research_agent.py" beforeDir="false" afterPath="$PROJECT_DIR$/src/agents/research_agent.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/agents/scope_agent.py" beforeDir="false" afterPath="$PROJECT_DIR$/src/agents/scope_agent.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/agents/supervisor_agent.py" beforeDir="false" afterPath="$PROJECT_DIR$/src/agents/supervisor_agent.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/agents/workflow_executor.py" beforeDir="false" afterPath="$PROJECT_DIR$/src/agents/workflow_executor.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/data_retriever/output_retriever.py" beforeDir="false" afterPath="$PROJECT_DIR$/src/data_retriever/output_retriever.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/llm/__init__.py" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/llm/gemini_client.py" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/prompt_engineering/templates.py" beforeDir="false" afterPath="$PROJECT_DIR$/src/prompt_engineering/templates.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/utils/tools.py" beforeDir="false" afterPath="$PROJECT_DIR$/src/utils/tools.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/uv.lock" beforeDir="false" afterPath="$PROJECT_DIR$/uv.lock" afterDir="false" />
+    </list>
+    <option name="SHOW_DIALOG" value="false" />
+    <option name="HIGHLIGHT_CONFLICTS" value="true" />
+    <option name="HIGHLIGHT_NON_ACTIVE_CHANGELIST" value="false" />
+    <option name="LAST_RESOLUTION" value="IGNORE" />
+  </component>
+  <component name="Git.Settings">
+    <option name="RECENT_GIT_ROOT_PATH" value="$PROJECT_DIR$" />
+  </component>
+  <component name="ProjectColorInfo"><![CDATA[{
+  "customColor": "",
+  "associatedIndex": 8
+}]]></component>
+  <component name="ProjectId" id="3Bfl6nOld6jOA2JlbRUoTzGdl5l" />
+  <component name="ProjectViewState">
+    <option name="hideEmptyMiddlePackages" value="true" />
+    <option name="showLibraryContents" value="true" />
+  </component>
+  <component name="PropertiesComponent"><![CDATA[{
+  "keyToString": {
+    "ModuleVcsDetector.initialDetectionPerformed": "true",
+    "RunOnceActivity.ShowReadmeOnStart": "true",
+    "RunOnceActivity.git.unshallow": "true",
+    "SHARE_PROJECT_CONFIGURATION_FILES": "true",
+    "com.intellij.ml.llm.matterhorn.ej.ui.settings.DefaultModelSelectionForGA.v1": "true",
+    "git-widget-placeholder": "main",
+    "junie.onboarding.icon.badge.shown": "true",
+    "to.speed.mode.migration.done": "true"
+  }
+}]]></component>
+  <component name="SharedIndexes">
+    <attachedChunks>
+      <set>
+        <option value="bundled-python-sdk-2653e85de345-6d6dccd035ac-com.jetbrains.pycharm.pro.sharedIndexes.bundled-PY-253.31033.139" />
+      </set>
+    </attachedChunks>
+  </component>
+  <component name="TaskManager">
+    <task active="true" id="Default" summary="Default task">
+      <changelist id="05ddb2d5-89e3-4a58-b308-d202f4cee6c6" name="Changes" comment="" />
+      <created>1774887833583</created>
+      <option name="number" value="Default" />
+      <option name="presentableId" value="Default" />
+      <updated>1774887833583</updated>
+    </task>
+    <servers />
+  </component>
+</project>

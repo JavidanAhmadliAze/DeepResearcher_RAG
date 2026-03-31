@@ -1,48 +1,73 @@
-from langchain_chroma import Chroma
-from langchain_google_genai import GoogleGenerativeAIEmbeddings
+import os
+
 from dotenv import load_dotenv
 from langchain.tools import tool
-import os
-from pathlib import Path
 
 load_dotenv()
-embedding = GoogleGenerativeAIEmbeddings(model="gemini-embedding-001")
-VECTOR_DB_PATH = str(Path(r"C:\Users\User\PythonProject\data\output").resolve())
-vector_store = Chroma(
-    collection_name="deep_research_texts",
-    embedding_function=embedding,
-    persist_directory=VECTOR_DB_PATH,
-    collection_metadata={"hnsw:space": "cosine"}
-)
+
+RAG_ENABLED = os.getenv("ENABLE_RAG", "false").strip().lower() in {"1", "true", "yes", "on"}
+_vector_store = None
+
+
+def get_vector_store():
+    """
+    Returns a Chroma Cloud vector store, or None if RAG is disabled.
+    Local Chroma is intentionally not supported — use Chroma Cloud when enabling RAG.
+    Set ENABLE_RAG=true and provide CHROMA_CLOUD_HOST + CHROMA_CLOUD_API_KEY.
+    """
+    global _vector_store
+
+    if not RAG_ENABLED:
+        return None
+
+    if _vector_store is None:
+        import chromadb
+        from langchain_chroma import Chroma
+        from langchain_google_genai import GoogleGenerativeAIEmbeddings
+
+        chroma_host = os.getenv("CHROMA_CLOUD_HOST")
+        if not chroma_host:
+            raise EnvironmentError(
+                "ENABLE_RAG=true but CHROMA_CLOUD_HOST is not set. "
+                "Provide your Chroma Cloud host or disable RAG."
+            )
+
+        api_key = os.getenv("CHROMA_CLOUD_API_KEY")
+        headers = {"Authorization": f"Bearer {api_key}"} if api_key else {}
+
+        client = chromadb.HttpClient(
+            host=chroma_host,
+            port=int(os.getenv("CHROMA_CLOUD_PORT", "443")),
+            ssl=True,
+            headers=headers,
+        )
+        embedding = GoogleGenerativeAIEmbeddings(model="gemini-embedding-001")
+        _vector_store = Chroma(
+            client=client,
+            collection_name="deep_research_texts",
+            embedding_function=embedding,
+            collection_metadata={"hnsw:space": "cosine"},
+        )
+
+    return _vector_store
+
+
 @tool
 def retrieve_data_with_score(research_brief: str):
     """
-    Retrieve relevant documents from memory using the research brief.
-    Only return results if top score <= 0.30; otherwise indicate that further research is needed.
+    Retrieve relevant documents from Chroma Cloud using the research brief.
+    Returns needs_research=True when RAG is disabled or no sufficiently similar
+    documents exist (cosine distance > 0.30).
     """
-    retrieved_docs_with_score = vector_store.similarity_search_with_score(
-        query=research_brief, k=10
-    )
+    vector_store = get_vector_store()
+    if vector_store is None:
+        return {"needs_research": True, "serialized": "", "rag_disabled": True}
 
-    best_score = min(score for _, score in retrieved_docs_with_score) if retrieved_docs_with_score else 1
-    needs_research = best_score > 0.30
+    results = vector_store.similarity_search_with_score(query=research_brief, k=10)
 
-    if needs_research:
-        return {
-            "needs_research": True,
-            "serialized": "",
-        }
+    best_score = min(score for _, score in results) if results else 1.0
+    if best_score > 0.30:
+        return {"needs_research": True, "serialized": ""}
 
-    serialized = "\n\n".join(
-        f"Content: {doc.page_content}" for doc, _ in retrieved_docs_with_score
-    )
-
-    return {
-        "needs_research": False,
-        "serialized": serialized
-    }
-
-if __name__ == '__main__':
-    result = retrieve_data_with_score("best agentic deep research assistant tools according to performance, latency, cost")
-    print("Needs further research?", result["needs_research"])
-    print("Serialized documents:\n", result["serialized"])
+    serialized = "\n\n".join(f"Content: {doc.page_content}" for doc, _ in results)
+    return {"needs_research": False, "serialized": serialized}

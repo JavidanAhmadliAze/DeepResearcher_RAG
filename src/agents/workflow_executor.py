@@ -1,21 +1,15 @@
 from src.agent_interface.states import AgentInputState, AgentOutputState, SupervisorState
 from src.utils.tools import get_today_str
 from langchain_core.messages import HumanMessage, AIMessage
-from src.llm.gemini_client import create_model
+from src.llm.model_wrapper import create_model
 from src.prompt_engineering.templates import get_prompt
 from src.agents.supervisor_agent import supervisor, supervisor_tools, supervisor_agent
+from src.agents.scope_agent import scope_agent
 from langgraph.graph import StateGraph, START, END
-from langsmith import traceable
-from psycopg_pool import AsyncConnectionPool
-import os
-from dotenv import load_dotenv
-load_dotenv()
-raw_url = os.getenv("ASYNC_DATABASE_URL")
-DATABASE_URL = raw_url.replace("+asyncpg", "")
+
 model = create_model("final_reporter")
 final_report_generation_prompt = get_prompt("final_reporter", "final_report_generation_prompt")
 
-@traceable
 async def final_report_generation(state: AgentOutputState):
     """
     Final report generation node.
@@ -46,24 +40,35 @@ async def final_report_generation(state: AgentOutputState):
     # Append to existing messages in state for memory continuity
     previous_messages = state.get("messages", [])
     updated_messages = previous_messages + [ai_message]
-    print(80*"#")
-    print(findings)
-    print(80*"#")
+
     return {
         "final_report": final_report_response.content,
         "messages": updated_messages,  # keep conversation history
     }
 
-deep_researcher_builder = StateGraph(AgentOutputState, input_schema=SupervisorState)
+
+def route_after_scope(state: AgentOutputState) -> str:
+    if state.get("needs_clarification"):
+        return END
+    return "supervisor_subgraph"
 
 
+def route_after_supervisor(state: AgentOutputState) -> str:
+    if state.get("workflow_error"):
+        return END
+    return "final_report_generation"
+
+deep_researcher_builder = StateGraph(AgentOutputState)
+
+deep_researcher_builder.add_node("scope_agent", scope_agent)
 deep_researcher_builder.add_node("supervisor_subgraph", supervisor_agent)
 deep_researcher_builder.add_node("final_report_generation", final_report_generation)
 
-deep_researcher_builder.add_edge(START,"supervisor_subgraph")
-deep_researcher_builder.add_edge("supervisor_subgraph", "final_report_generation" )
+deep_researcher_builder.add_edge(START,"scope_agent")
+deep_researcher_builder.add_conditional_edges("scope_agent", route_after_scope)
+deep_researcher_builder.add_conditional_edges("supervisor_subgraph", route_after_supervisor)
 deep_researcher_builder.add_edge("final_report_generation", END)
 
-connection_pool = AsyncConnectionPool(conninfo=DATABASE_URL, max_size=20,open=False)
 
 
+deep_researcher_agent = deep_researcher_builder.compile()

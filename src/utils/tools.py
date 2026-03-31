@@ -3,7 +3,7 @@ from src.agent_interface.schemas import Summary
 from src.prompt_engineering.templates import get_prompt
 from typing_extensions import Literal, List, Annotated
 from tavily import TavilyClient
-from src.llm.gemini_client import create_model
+from src.llm.model_wrapper import create_model, invoke_structured
 from langchain_core.messages import HumanMessage
 from datetime import datetime
 import os
@@ -13,7 +13,6 @@ load_dotenv()
 TAVILY_API_KEY = os.getenv("TAVILY_API_KEY")
 
 summarize_webpage_prompt = get_prompt("utils","summarize_webpage_prompt")
-model = create_model("summarizer")
 tavily_client = TavilyClient(api_key=TAVILY_API_KEY)
 
 def get_today_str() -> str:
@@ -51,6 +50,9 @@ def tavily_search_multiple(
 
     return search_docs
 
+model = create_model("summarizer")
+
+
 def summarize_webpage_content(webpage_content: str) -> str:
     """Summarize webpage content using the configured summarization model.
 
@@ -61,11 +63,7 @@ def summarize_webpage_content(webpage_content: str) -> str:
         Formatted summary with key excerpts
     """
     try:
-        # Set up structured output model for summarization
-        structured_model = model.with_structured_output(Summary)
-
-        # Generate summary
-        summary = structured_model.invoke([
+        summary = invoke_structured(model, Summary, [
             HumanMessage(content=summarize_webpage_prompt.format(
                 webpage_content=webpage_content,
                 date=get_today_str()

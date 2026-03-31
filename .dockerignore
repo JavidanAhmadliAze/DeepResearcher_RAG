@@ -1,0 +1,31 @@
+# Frontend — has its own build context in docker-compose
+src/frontend/
+
+# Python artifacts
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+*.egg-info/
+dist/
+build/
+.eggs/
+
+# Dev/test
+.venv/
+.env
+.env.*
+tests/
+docs/
+
+# IDE / VCS
+.git/
+.gitignore
+.idea/
+.vscode/
+*.DS_Store
+
+# Docker files at root (not needed inside image)
+docker-compose.yml
+.dockerignore

@@ -25,6 +25,10 @@ class AgentOutputState(MessagesState):
     notes: Annotated[[List[str]], operator.add]
     trigger_search: bool
     final_report: str
+    needs_clarification: bool
+    clarification_question: Optional[str]
+    ui_messages: Annotated[list[str], operator.add]
+    workflow_error: Optional[str]
 
 class SupervisorState(TypedDict):
     """
@@ -46,6 +50,9 @@ class SupervisorState(TypedDict):
     raw_notes: Annotated[list[str], operator.add] = []
     # Lets us know if we need to retrieve data from db
     trigger_search: bool = True
+    # User-safe progress messages for the UI only
+    ui_messages: Annotated[list[str], operator.add] = []
+    workflow_error: Optional[str]
 
 class ResearcherState(TypedDict):
     """
@@ -59,6 +66,8 @@ class ResearcherState(TypedDict):
     research_topic: str
     compressed_research: str
     raw_notes: Annotated[List[str], operator.add]
+    ui_messages: Annotated[list[str], operator.add]
+    research_iterations: int
 
 class ResearcherOutputState(TypedDict):
     """
@@ -70,3 +79,4 @@ class ResearcherOutputState(TypedDict):
     compressed_research: str
     raw_notes: Annotated[List[str], operator.add]
     researcher_messages: Annotated[Sequence[BaseMessage], add_messages]
+    ui_messages: Annotated[list[str], operator.add]

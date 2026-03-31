@@ -1,27 +1,44 @@
 [project]
-name = "pythonproject"
+name = "deep-research-assistant"
 version = "0.1.0"
-description = "Add your description here"
-requires-python = ">=3.13"
+description = "Deep Research Multi-Agent System with NVIDIA NAT"
+requires-python = ">=3.12,<3.13"
+license = {text = "MIT"}
+
 dependencies = [
-    "aiosqlite>=0.22.0",
-    "asyncpg>=0.31.0",
-    "dotenv>=0.9.9",
     "fastapi>=0.127.0",
-    "fastapi-users[sqlalchemy]>=15.0.3",
-    "langchain>=1.1.3",
-    "langchain-chroma>=1.1.0",
-    "langchain-core>=1.2.0",
-    "langchain-deepseek>=1.0.1",
-    "langchain-google-genai>=4.0.0",
-    "langchain-openai>=1.1.3",
-    "langchain-text-splitters>=1.1.0",
-    "langfuse>=3.10.7",
-    "langgraph>=1.0.5",
-    "langgraph-checkpoint-postgres>=3.0.2",
-    "psycopg[binary,pool]>=3.3.2",
-    "sqlalchemy>=2.0.45",
-    "streamlit>=1.52.1",
-    "tavily>=1.1.0",
     "uvicorn[standard]>=0.38.0",
+    "langchain>=0.3.0",
+    "langchain-core>=0.3.0",
+    "langgraph>=0.2.0",
+    "langgraph-checkpoint-postgres>=2.0.0",
+    "langchain-chroma>=0.1.4",
+    "langchain-google-genai>=2.0.0",
+    "langchain-openai>=0.2.0",
+    "sqlalchemy>=2.0.0",
+    "psycopg[binary,pool]>=3.2.0",
+    "pydantic-settings>=2.5.0",
+    "tavily-python>=0.7.21",
+    "python-dotenv>=1.0.1",
+    "pyyaml>=6.0.2",
+    "asyncpg>=0.31.0",
+    "langfuse>=2.0.0",
+    "pydantic>=2.9.0",
+    "typing-extensions>=4.12.0",
+    "requests~=2.32.5",
 ]
+
+[dependency-groups]
+dev = [
+    "pytest>=8.0.0",
+    "httpx>=0.27.0",
+    "anyio>=4.0.0",
+    "pytest-anyio>=0.0.0",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src"]

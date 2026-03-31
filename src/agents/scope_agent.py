@@ -5,12 +5,9 @@ from langchain_core.messages import AIMessage, HumanMessage, ToolMessage, get_bu
 from dotenv import load_dotenv
 from src.agent_interface.states import AgentInputState, AgentOutputState
 from src.agent_interface.schemas import ClarifyWithUser, ResearchQuestion
-from src.llm.gemini_client import create_model
-from langsmith import traceable
+from src.llm.model_wrapper import create_model, ainvoke_structured
 from src.prompt_engineering.templates import get_prompt
 from src.utils.tools import get_today_str
-from langgraph.checkpoint.memory import InMemorySaver
-
 
 load_dotenv()
 
@@ -19,12 +16,8 @@ transform_messages_into_research_topic_prompt = get_prompt("scope_agent","transf
 
 model = create_model("scope_agent")
 
-@traceable
 async def clarify_with_user(state: AgentInputState) -> Command[Literal["write_research_brief", "__end__"]]:
-
-    structured_output_model = model.with_structured_output(schema=ClarifyWithUser)
-
-    result = await structured_output_model.ainvoke([
+    result = await ainvoke_structured(model, ClarifyWithUser, [
         HumanMessage(content=clarification_instructions.format(
             messages = get_buffer_string(messages=state.get("messages", [])),
             date = get_today_str(),
@@ -34,20 +27,25 @@ async def clarify_with_user(state: AgentInputState) -> Command[Literal["write_re
     if result.need_clarification:
         return Command(
                 goto="__end__",
-                update={"messages": [AIMessage(content=result.question)]}
+                update={
+                    "messages": [AIMessage(content=result.question)],
+                    "needs_clarification": True,
+                    "clarification_question": result.question,
+                }
             )
 
     else:
         return Command(
             goto="write_research_brief",
-            update={"messages": [AIMessage(content=result.verification)]}
+            update={
+                "messages": [AIMessage(content=result.verification)],
+                "needs_clarification": False,
+                "clarification_question": None,
+            }
         )
 
 async def write_research_brief(state: AgentOutputState):
-
-    structured_output_model = model.with_structured_output(schema=ResearchQuestion)
-
-    result = await structured_output_model.ainvoke([
+    result = await ainvoke_structured(model, ResearchQuestion, [
         HumanMessage(content=transform_messages_into_research_topic_prompt.format(
             messages=get_buffer_string(messages=state.get("messages",[])),
             date=get_today_str()
@@ -64,5 +62,4 @@ scope_graph.add_node("write_research_brief", write_research_brief)
 scope_graph.add_edge(START,"clarify_with_user")
 scope_graph.add_edge("write_research_brief", END)
 
-
-
+scope_agent = scope_graph.compile()

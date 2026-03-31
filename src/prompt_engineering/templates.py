@@ -4,7 +4,7 @@ from pathlib import Path
 # 1. Get the directory where templates.py is located
 # 2. Go up enough levels to reach the root (PythonProject)
 # 3. Then go into config/
-BASE_DIR = Path(__file__).resolve().parent.parent.parent
+BASE_DIR = Path(__file__).resolve().parent.parent
 PROMPT_PATH = BASE_DIR / "config" / "prompt_templates.yaml"
 
 # Debugging line - this will show up in 'docker logs research_backend'
