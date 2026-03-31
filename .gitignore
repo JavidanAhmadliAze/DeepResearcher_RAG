@@ -2,8 +2,9 @@
 .env
 .env.*
 *.env
-
+*terraform.tfvars
 # === VIRTUAL ENV ===
+
 .venv/
 venv/
 
