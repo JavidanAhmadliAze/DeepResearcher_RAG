@@ -84,13 +84,19 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Log in to Azure
-        uses: azure/login@v2
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
         with:
-          creds: ${{ secrets.AZURE_CREDENTIALS }}
+          enable-cache: true
+          python-version: "3.12"
+
+      - name: Export requirements.txt for Oryx build
+        run: uv export --frozen --no-dev --no-hashes -o requirements.txt
 
       - name: Deploy to Azure Web App
         uses: azure/webapps-deploy@v3
         with:
           app-name: deep-research-assistant-api
+          publish-profile: ${{ secrets.AZURE_WEBAPP_PUBLISH_PROFILE }}
+          startup-command: "uvicorn src.api.main:app --host 0.0.0.0 --port 8000 --workers 1"
           package: .
