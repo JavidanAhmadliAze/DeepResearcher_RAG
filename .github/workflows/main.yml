@@ -76,7 +76,7 @@ jobs:
   # -------------------------------------------------------------------------
   # Deploy to Azure Web App — only on push to main after both test jobs pass
   # -------------------------------------------------------------------------
-  deploy:
+deploy:
     name: Deploy to Azure
     needs: [unit-tests, integration-tests]
     if: github.ref == 'refs/heads/main' && github.event_name == 'push'
@@ -90,6 +90,7 @@ jobs:
           enable-cache: true
           python-version: "3.12"
 
+      # Azure's build engine (Oryx) needs this to install your libraries
       - name: Export requirements.txt for Oryx build
         run: uv export --frozen --no-dev --no-hashes -o requirements.txt
 
@@ -98,5 +99,4 @@ jobs:
         with:
           app-name: deep-research-assistant-api-83948394892347382348
           publish-profile: ${{ secrets.AZURE_WEBAPP_PUBLISH_PROFILE }}
-          startup-command: "uvicorn src.api.main:app --host 0.0.0.0 --port 8000 --workers 1"
           package: .
