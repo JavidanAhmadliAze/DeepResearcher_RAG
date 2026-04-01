@@ -9,7 +9,16 @@ load_dotenv()
 # set by Terraform (includes ?sslmode=require for Azure PostgreSQL).
 DATABASE_URL = os.getenv("DATABASE_URL", "postgresql+asyncpg://javidan:password@db:5432/research_db")
 
-engine = create_async_engine(DATABASE_URL, echo=True)
+# asyncpg doesn't support `sslmode` as a URL param — strip it and pass ssl via connect_args.
+def _asyncpg_engine():
+    url = DATABASE_URL
+    connect_args = {}
+    if "sslmode=require" in url:
+        url = url.replace("?sslmode=require", "").replace("&sslmode=require", "")
+        connect_args["ssl"] = "require"
+    return create_async_engine(url, echo=True, connect_args=connect_args)
+
+engine = _asyncpg_engine()
 async_session = async_sessionmaker(engine, expire_on_commit=False, class_=AsyncSession)
 
 
