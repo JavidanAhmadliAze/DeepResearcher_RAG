@@ -3,7 +3,7 @@ from typing import AsyncGenerator
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import StreamingResponse
-from langchain_core.messages import AIMessage, HumanMessage
+from langchain_core.messages import HumanMessage
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.agents.workflow_executor import deep_researcher_agent
@@ -48,16 +48,12 @@ async def chat_endpoint(
         thread_id=chat_request.thread_id,
     )
 
-    thread_history = await repo.get_thread_messages(chat_request.thread_id, current_user.id)
-
-    input_messages = [
-        HumanMessage(content=msg.content) if msg.role == "user" else AIMessage(content=msg.content)
-        for msg in thread_history
-    ]
-
     async def stream_response() -> AsyncGenerator[str, None]:
         config = {"configurable": {"thread_id": chat_request.thread_id}}
-        inputs = {"messages": input_messages}
+        # Pass only the new message — the checkpointer restores prior state
+        # automatically. Passing the full history would duplicate every previous
+        # message in the LangGraph state via the add_messages reducer.
+        inputs = {"messages": [HumanMessage(content=chat_request.message)]}
         status_message = None
         streamed_chunks: list[str] = []
         fallback_ai_content = None

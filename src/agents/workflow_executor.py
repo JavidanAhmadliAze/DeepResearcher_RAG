@@ -71,4 +71,8 @@ deep_researcher_builder.add_edge("final_report_generation", END)
 
 
 
-deep_researcher_agent = deep_researcher_builder.compile()
+def compile_deep_researcher(checkpointer=None):
+    return deep_researcher_builder.compile(checkpointer=checkpointer)
+
+
+deep_researcher_agent = compile_deep_researcher()
