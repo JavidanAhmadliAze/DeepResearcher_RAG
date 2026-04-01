@@ -129,7 +129,7 @@ resource "azurerm_linux_web_app" "webapp" {
   app_settings = {
     # --- Database ---
     # asyncpg requires postgresql+asyncpg scheme; sslmode=require is mandatory for Azure PostgreSQL.
-    "DATABASE_URL" = "postgresql+asyncpg://${var.db_username}:${var.db_password}@${azurerm_postgresql_flexible_server.postgres.fqdn}:5432/${var.db_name}?ssl=true"
+    "DATABASE_URL" = "postgresql+asyncpg://${var.db_username}:${var.db_password}@${azurerm_postgresql_flexible_server.postgres.fqdn}:5432/${var.db_name}?sslmode=require"
 
     # --- Application secrets ---
     "TAVILY_API_KEY"   = var.tavily_api_key

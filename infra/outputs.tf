@@ -10,7 +10,7 @@ output "postgres_fqdn" {
 
 output "database_url" {
   description = "Async DATABASE_URL to paste into .env or CI secrets"
-  value       = "postgresql+asyncpg://${var.db_username}:${var.db_password}@${azurerm_postgresql_flexible_server.postgres.fqdn}:5432/${var.db_name}?ssl=true"
+  value       = "postgresql+asyncpg://${var.db_username}:${var.db_password}@${azurerm_postgresql_flexible_server.postgres.fqdn}:5432/${var.db_name}?sslmode=require"
   sensitive   = true
 }
 
