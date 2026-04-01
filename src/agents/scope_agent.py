@@ -8,16 +8,27 @@ from src.agent_interface.schemas import ClarifyWithUser, ResearchQuestion
 from src.llm.model_wrapper import create_model, ainvoke_structured
 from src.prompt_engineering.templates import get_prompt
 from src.utils.tools import get_today_str
+from threading import Lock
 
 load_dotenv()
 
 clarification_instructions = get_prompt("scope_agent","clarification_instructions")
 transform_messages_into_research_topic_prompt = get_prompt("scope_agent","transform_messages_into_research_topic_prompt")
 
-model = create_model("scope_agent")
+_model = None
+_model_lock = Lock()
+
+
+def _get_model():
+    global _model
+    if _model is None:
+        with _model_lock:
+            if _model is None:
+                _model = create_model("scope_agent")
+    return _model
 
 async def clarify_with_user(state: AgentInputState) -> Command[Literal["write_research_brief", "__end__"]]:
-    result = await ainvoke_structured(model, ClarifyWithUser, [
+    result = await ainvoke_structured(_get_model(), ClarifyWithUser, [
         HumanMessage(content=clarification_instructions.format(
             messages = get_buffer_string(messages=state.get("messages", [])),
             date = get_today_str(),
@@ -45,7 +56,7 @@ async def clarify_with_user(state: AgentInputState) -> Command[Literal["write_re
         )
 
 async def write_research_brief(state: AgentOutputState):
-    result = await ainvoke_structured(model, ResearchQuestion, [
+    result = await ainvoke_structured(_get_model(), ResearchQuestion, [
         HumanMessage(content=transform_messages_into_research_topic_prompt.format(
             messages=get_buffer_string(messages=state.get("messages",[])),
             date=get_today_str()

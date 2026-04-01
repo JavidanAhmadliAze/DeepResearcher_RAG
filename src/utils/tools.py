@@ -6,14 +6,34 @@ from tavily import TavilyClient
 from src.llm.model_wrapper import create_model, invoke_structured
 from langchain_core.messages import HumanMessage
 from datetime import datetime
+from threading import Lock
 import os
 from dotenv import load_dotenv
 load_dotenv()
 
-TAVILY_API_KEY = os.getenv("TAVILY_API_KEY")
-
 summarize_webpage_prompt = get_prompt("utils","summarize_webpage_prompt")
-tavily_client = TavilyClient(api_key=TAVILY_API_KEY)
+
+_tavily_client = None
+_model = None
+_lock = Lock()
+
+
+def _get_tavily_client() -> TavilyClient:
+    global _tavily_client
+    if _tavily_client is None:
+        with _lock:
+            if _tavily_client is None:
+                _tavily_client = TavilyClient(api_key=os.getenv("TAVILY_API_KEY"))
+    return _tavily_client
+
+
+def _get_model():
+    global _model
+    if _model is None:
+        with _lock:
+            if _model is None:
+                _model = create_model("summarizer")
+    return _model
 
 def get_today_str() -> str:
     return datetime.now().strftime("%a %b %#d, %Y")
@@ -40,7 +60,7 @@ def tavily_search_multiple(
     # Execute searches sequentially. Note: yon can use AsyncTavilyClient to parallelize this step.
     search_docs = []
     for query in search_queries:
-        result = tavily_client.search(
+        result = _get_tavily_client().search(
             query,
             max_results=max_results,
             include_raw_content=include_raw_content,
@@ -49,9 +69,6 @@ def tavily_search_multiple(
         search_docs.append(result)
 
     return search_docs
-
-model = create_model("summarizer")
-
 
 def summarize_webpage_content(webpage_content: str) -> str:
     """Summarize webpage content using the configured summarization model.
@@ -63,7 +80,7 @@ def summarize_webpage_content(webpage_content: str) -> str:
         Formatted summary with key excerpts
     """
     try:
-        summary = invoke_structured(model, Summary, [
+        summary = invoke_structured(_get_model(), Summary, [
             HumanMessage(content=summarize_webpage_prompt.format(
                 webpage_content=webpage_content,
                 date=get_today_str()

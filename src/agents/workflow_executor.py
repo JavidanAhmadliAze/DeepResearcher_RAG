@@ -6,9 +6,21 @@ from src.prompt_engineering.templates import get_prompt
 from src.agents.supervisor_agent import supervisor, supervisor_tools, supervisor_agent
 from src.agents.scope_agent import scope_agent
 from langgraph.graph import StateGraph, START, END
+from threading import Lock
 
-model = create_model("final_reporter")
 final_report_generation_prompt = get_prompt("final_reporter", "final_report_generation_prompt")
+
+_model = None
+_model_lock = Lock()
+
+
+def _get_model():
+    global _model
+    if _model is None:
+        with _model_lock:
+            if _model is None:
+                _model = create_model("final_reporter")
+    return _model
 
 async def final_report_generation(state: AgentOutputState):
     """
@@ -32,7 +44,7 @@ async def final_report_generation(state: AgentOutputState):
     )
 
     # Call the model
-    final_report_response = await model.ainvoke([HumanMessage(content=final_report_prompt)])
+    final_report_response = await _get_model().ainvoke([HumanMessage(content=final_report_prompt)])
 
     # Wrap final report in AIMessage to keep it labeled correctly
     ai_message = AIMessage(content=final_report_response.content)
