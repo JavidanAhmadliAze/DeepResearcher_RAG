@@ -29,8 +29,13 @@ variable "db_name" {
 }
 
 variable "app_name" {
-  description = "Name of the Container App (must be globally unique)"
+  description = "Name of the backend Web App (must be globally unique)"
   default     = "deep-research-assistant-api"
+}
+
+variable "frontend_app_name" {
+  description = "Name of the frontend Web App (must be globally unique)"
+  default     = "deep-research-assistant-ui"
 }
 
 # Application secrets — passed via TF_VAR_* env vars or tfvars (never commit real values)

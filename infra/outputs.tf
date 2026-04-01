@@ -3,6 +3,11 @@ output "webapp_url" {
   value       = "https://${azurerm_linux_web_app.api.default_hostname}"
 }
 
+output "frontend_url" {
+  description = "Public URL of the deployed frontend"
+  value       = "https://${azurerm_linux_web_app.frontend.default_hostname}"
+}
+
 output "postgres_fqdn" {
   description = "Fully-qualified domain name of the PostgreSQL server"
   value       = azurerm_postgresql_flexible_server.postgres.fqdn

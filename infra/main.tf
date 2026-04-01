@@ -121,7 +121,6 @@ resource "azurerm_linux_web_app" "api" {
   }
 
   app_settings = {
-    # Python path so `src.*` imports resolve correctly
     "PYTHONPATH" = "/home/site/wwwroot"
 
     # --- Database ---
@@ -143,5 +142,23 @@ resource "azurerm_linux_web_app" "api" {
     "CHROMA_CLOUD_HOST"    = var.chroma_cloud_host
     "CHROMA_CLOUD_PORT"    = var.chroma_cloud_port
     "CHROMA_CLOUD_API_KEY" = var.chroma_cloud_api_key
+  }
+}
+
+# ---------------------------------------------------------------------------
+# Linux Web App (Next.js frontend — static export served by `serve`)
+# Reuses the same App Service Plan as the backend.
+# ---------------------------------------------------------------------------
+resource "azurerm_linux_web_app" "frontend" {
+  name                = var.frontend_app_name
+  resource_group_name = azurerm_resource_group.rg.name
+  location            = azurerm_resource_group.rg.location
+  service_plan_id     = azurerm_service_plan.plan.id
+
+  site_config {
+    application_stack {
+      node_version = "20-lts"
+    }
+    startup_command = "npx serve -s . -l $PORT"
   }
 }
