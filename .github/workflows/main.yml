@@ -92,11 +92,3 @@ jobs:
 
       - name: Export requirements.txt for Oryx build
         run: uv export --frozen --no-dev --no-hashes -o requirements.txt
-
-      - name: Deploy to Azure Web App
-        uses: azure/webapps-deploy@v3
-        with:
-          app-name: deep-research-assistant-api-83948394892347382348
-          publish-profile: ${{ secrets.AZURE_WEBAPP_PUBLISH_PROFILE }}
-          startup-command: "uvicorn src.api.main:app --host 0.0.0.0 --port 8000 --workers 1"
-          package: .
