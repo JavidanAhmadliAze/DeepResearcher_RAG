@@ -28,13 +28,8 @@ variable "db_name" {
   default     = "research_db"
 }
 
-variable "app_service_plan_name" {
-  description = "Name of the App Service Plan"
-  default     = "research-app-plan"
-}
-
 variable "app_name" {
-  description = "Name of the Web App (must be globally unique)"
+  description = "Name of the Container App (must be globally unique)"
   default     = "deep-research-assistant-api"
 }
 

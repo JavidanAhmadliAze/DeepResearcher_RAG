@@ -92,43 +92,39 @@ resource "azurerm_postgresql_flexible_server_database" "db" {
 }
 
 # ---------------------------------------------------------------------------
-# App Service Plan
-# NOTE: F1 (Free shared) does NOT support Python on Linux — it only works for
-# Windows code or static HTML. B1 (Basic) is the cheapest Linux tier that
-# supports Python. At ~$13/mo it is well within the $100 Azure student credit.
+# App Service Plan (Linux, B1)
+# B1 Basic: 1 vCore, 1.75 GB RAM — cheapest always-on tier.
 # ---------------------------------------------------------------------------
-resource "azurerm_service_plan" "asp" {
-  name                = var.app_service_plan_name
+resource "azurerm_service_plan" "plan" {
+  name                = "${var.app_name}-plan"
   resource_group_name = azurerm_resource_group.rg.name
   location            = azurerm_resource_group.rg.location
   os_type             = "Linux"
-  sku_name            = "B1" # Minimum Linux tier that supports Python runtime
+  sku_name            = "B1"
 }
 
 # ---------------------------------------------------------------------------
 # Linux Web App (FastAPI backend)
+# Deployed via zip + publish profile from CI/CD.
 # ---------------------------------------------------------------------------
-resource "azurerm_linux_web_app" "webapp" {
+resource "azurerm_linux_web_app" "api" {
   name                = var.app_name
   resource_group_name = azurerm_resource_group.rg.name
-  location            = azurerm_service_plan.asp.location
-  service_plan_id     = azurerm_service_plan.asp.id
+  location            = azurerm_resource_group.rg.location
+  service_plan_id     = azurerm_service_plan.plan.id
 
   site_config {
     application_stack {
       python_version = "3.12"
     }
-
-    # B1 supports always_on; set to true so the SSE streaming doesn't time out on cold start.
-    always_on = true
-
-    # uvicorn startup command — Oryx build will install deps via pyproject.toml.
-    app_command_line = "uvicorn src.api.main:app --host 0.0.0.0 --port 8000 --workers 1"
+    startup_command = "uvicorn src.api.main:app --host 0.0.0.0 --port 8000"
   }
 
   app_settings = {
+    # Python path so `src.*` imports resolve correctly
+    "PYTHONPATH" = "/home/site/wwwroot"
+
     # --- Database ---
-    # asyncpg requires postgresql+asyncpg scheme; sslmode=require is mandatory for Azure PostgreSQL.
     "DATABASE_URL" = "postgresql+asyncpg://${var.db_username}:${var.db_password}@${azurerm_postgresql_flexible_server.postgres.fqdn}:5432/${var.db_name}?sslmode=require"
 
     # --- Application secrets ---
@@ -143,15 +139,9 @@ resource "azurerm_linux_web_app" "webapp" {
     "LANGFUSE_BASE_URL"   = var.langfuse_host
 
     # --- RAG (disabled; Chroma Cloud only when enabled) ---
-    "ENABLE_RAG"          = "false"
-    "CHROMA_CLOUD_HOST"   = var.chroma_cloud_host
-    "CHROMA_CLOUD_PORT"   = var.chroma_cloud_port
+    "ENABLE_RAG"           = "false"
+    "CHROMA_CLOUD_HOST"    = var.chroma_cloud_host
+    "CHROMA_CLOUD_PORT"    = var.chroma_cloud_port
     "CHROMA_CLOUD_API_KEY" = var.chroma_cloud_api_key
-
-    # --- Azure App Service build settings ---
-    # Tells App Service to use the repo root as build source.
-    "SCM_DO_BUILD_DURING_DEPLOYMENT" = "true"
-    # Required so Oryx picks up pyproject.toml / uv.lock correctly.
-    "ENABLE_ORYX_BUILD" = "true"
   }
 }

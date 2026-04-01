@@ -1,6 +1,6 @@
 output "webapp_url" {
   description = "Public URL of the deployed backend API"
-  value       = "https://${azurerm_linux_web_app.webapp.default_hostname}"
+  value       = "https://${azurerm_linux_web_app.api.default_hostname}"
 }
 
 output "postgres_fqdn" {
