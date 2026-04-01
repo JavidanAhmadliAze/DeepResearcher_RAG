@@ -140,7 +140,7 @@ jobs:
 
       - name: Install dependencies
         working-directory: src/frontend
-        run: npm ci
+        run: npm install
 
       - name: Build
         working-directory: src/frontend
