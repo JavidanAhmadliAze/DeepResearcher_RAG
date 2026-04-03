@@ -22,6 +22,17 @@ class ResearchQuestion(BaseModel):
         description="A research question that will be used to guide the research."
     )
 
+class GuardrailDecision(BaseModel):
+    """Schema for guardrail agent decision on user input safety."""
+
+    is_safe: bool = Field(
+        description="Whether the user input is safe and appropriate for the research system.",
+    )
+    rejection_message: str = Field(
+        description="Message to return to the user if the input is rejected. Empty string if safe.",
+    )
+
+
 class Summary(BaseModel):
     """Schema for webpage content summarization."""
     summary: str = Field(description="Concise summary of the webpage content")

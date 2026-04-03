@@ -5,6 +5,7 @@ from src.llm.model_wrapper import create_model
 from src.prompt_engineering.templates import get_prompt
 from src.agents.supervisor_agent import supervisor, supervisor_tools, supervisor_agent
 from src.agents.scope_agent import scope_agent
+from src.agents.guardrail_agent import run_guardrail
 from langgraph.graph import StateGraph, START, END
 from threading import Lock
 
@@ -59,6 +60,24 @@ async def final_report_generation(state: AgentOutputState):
     }
 
 
+async def guardrail_node(state: AgentOutputState) -> dict:
+    decision = await run_guardrail(state)
+    if not decision.is_safe:
+        return {
+            "messages": [AIMessage(content=decision.rejection_message)],
+            "needs_clarification": True,
+            "clarification_question": decision.rejection_message,
+            "workflow_error": "guardrail_rejected",
+        }
+    return {}
+
+
+def route_after_guardrail(state: AgentOutputState) -> str:
+    if state.get("workflow_error") == "guardrail_rejected":
+        return END
+    return "scope_agent"
+
+
 def route_after_scope(state: AgentOutputState) -> str:
     if state.get("needs_clarification"):
         return END
@@ -72,11 +91,13 @@ def route_after_supervisor(state: AgentOutputState) -> str:
 
 deep_researcher_builder = StateGraph(AgentOutputState)
 
+deep_researcher_builder.add_node("guardrail", guardrail_node)
 deep_researcher_builder.add_node("scope_agent", scope_agent)
 deep_researcher_builder.add_node("supervisor_subgraph", supervisor_agent)
 deep_researcher_builder.add_node("final_report_generation", final_report_generation)
 
-deep_researcher_builder.add_edge(START,"scope_agent")
+deep_researcher_builder.add_edge(START, "guardrail")
+deep_researcher_builder.add_conditional_edges("guardrail", route_after_guardrail)
 deep_researcher_builder.add_conditional_edges("scope_agent", route_after_scope)
 deep_researcher_builder.add_conditional_edges("supervisor_subgraph", route_after_supervisor)
 deep_researcher_builder.add_edge("final_report_generation", END)

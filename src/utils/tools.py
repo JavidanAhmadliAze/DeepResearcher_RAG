@@ -42,7 +42,7 @@ def get_today_str() -> str:
 def tavily_search_multiple(
     search_queries: List[str],
     max_results: int = 3,
-    topic: Literal["general", "scientific", "beauty_tech_trend"] = "general",
+    topic: Literal["general", "scientific", "tech_trend"] = "general",
     include_raw_content: bool = True,
 ) -> List[dict]:
     """Perform search using Tavily API for multiple queries.

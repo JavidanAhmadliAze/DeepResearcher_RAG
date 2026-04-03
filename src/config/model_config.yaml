@@ -9,6 +9,7 @@ default_provider: DeepSeek-V3.2
 # --------------------------------
 # Assigned based on task complexity vs. speed requirements
 routing:
+  guardrail_agent: deepseek-chat
   scope_agent: deepseek-chat
   supervisor_agent: deepseek-chat
   research_agent: deepseek-chat
