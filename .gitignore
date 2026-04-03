@@ -18,3 +18,9 @@ data/embeddings/
 
 output/
 *chroma.sqlite3
+
+# === NODE / FRONTEND ===
+node_modules/
+src/frontend/node_modules/
+src/frontend/.next/
+src/frontend/out/
