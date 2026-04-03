@@ -21,10 +21,10 @@ models:
     model: deepseek-chat
     temperature: 0.0
     max_tokens: 8000
-    timeout: 15
+    timeout: 120
 
   deepseek-reasoner:
     model: deepseek-reasoner
     temperature: 0.2
     max_tokens: 32000
-    timeout: 30
+    timeout: 300

@@ -59,7 +59,7 @@ def get_model():
     return _model, _model_with_tools
 
 
-def llm_call(state: ResearcherState):
+async def llm_call(state: ResearcherState):
     """Analyze current state and decide on next actions.
 
     The model analyzes the current conversation state and decides whether to:
@@ -71,14 +71,14 @@ def llm_call(state: ResearcherState):
     _, model_with_tools = get_model()
     return {
         "researcher_messages": [
-            model_with_tools.invoke(
+            await model_with_tools.ainvoke(
                 [SystemMessage(content=research_agent_prompt)] + state.get("researcher_messages", [])
             )
         ]
     }
 
 
-def tool_node(state: ResearcherState):
+async def tool_node(state: ResearcherState):
     """Execute all tool calls from the previous LLM response and show outputs."""
 
     tool_calls = state["researcher_messages"][-1].tool_calls
@@ -89,8 +89,8 @@ def tool_node(state: ResearcherState):
         tool_name = getattr(tool_call, "name", tool_call.get("name"))
         tool_args = getattr(tool_call, "args", tool_call.get("args"))
 
-        tool = tools_by_name[tool_name]
-        observation = tool.invoke(tool_args)
+        t = tools_by_name[tool_name]
+        observation = await t.ainvoke(tool_args)
 
         observations.append(observation)
         if tool_name == "tavily_search" and isinstance(observation, str) and observation.strip():
@@ -113,7 +113,7 @@ def tool_node(state: ResearcherState):
     }
 
 
-def compress_research(state: ResearcherState) -> dict:
+async def compress_research(state: ResearcherState) -> dict:
     """Compress research findings into a concise summary.
 
     Takes all the research messages and tool outputs and creates
@@ -136,7 +136,7 @@ def compress_research(state: ResearcherState) -> dict:
         + researcher_messages
         + [HumanMessage(content=compress_research_human_message)]
     )
-    response = model.invoke(messages)
+    response = await model.ainvoke(messages)
 
     # Extract raw notes from tool and AI messages
     raw_notes = [
