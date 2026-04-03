@@ -16,7 +16,6 @@ from src.api.streaming import (
     SCOPE_MESSAGE_NODES,
     coerce_text,
     extract_last_ai_content,
-    extract_tavily_messages,
     extract_ui_messages,
     format_sse,
     normalize_message_payload,
@@ -105,15 +104,6 @@ async def chat_endpoint(
                                 {"node": current_node, "content": ui_message},
                             )
 
-                        for tavily_message in extract_tavily_messages(update):
-                            if tavily_message in emitted_background_messages:
-                                continue
-                            emitted_background_messages.add(tavily_message)
-                            yield format_sse(
-                                "background_message",
-                                {"node": current_node, "content": tavily_message},
-                            )
-
                         content = extract_last_ai_content(update)
                         if content:
                             fallback_ai_content = content
@@ -138,13 +128,8 @@ async def chat_endpoint(
 
                     tool_name = getattr(message_chunk, "name", None)
                     if node_name == "tool_node" and tool_name == "tavily_search":
-                        tavily_content = coerce_text(getattr(message_chunk, "content", ""))
-                        if tavily_content and tavily_content not in emitted_background_messages:
-                            emitted_background_messages.add(tavily_content)
-                            yield format_sse(
-                                "background_message",
-                                {"node": node_name, "content": tavily_content},
-                            )
+                        # Raw ToolMessage content is already cleaned and emitted via
+                        # ui_messages in the "updates" branch — skip duplicates here.
                         continue
 
                     if node_name != FINAL_REPORT_NODE:

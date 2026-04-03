@@ -12,8 +12,24 @@ research_agent_prompt = get_prompt("research_agent", "research_agent_prompt")
 compress_research_system_prompt = get_prompt("research_agent", "compress_research_system_prompt")
 compress_research_human_message = get_prompt("research_agent", "compress_research_human_message")
 
+import re
+
 tools = [tavily_search, think_tool]
 tools_by_name = {tool.name: tool for tool in tools}
+
+
+def _format_search_ui_message(query: str, observation: str) -> str:
+    """Build a clean intermediate UI message from a Tavily search result.
+
+    Extracts source titles from the formatted observation string and returns
+    a short, human-readable summary — no XML/HTML tags, no raw content.
+    """
+    titles = re.findall(r"--- SOURCE \d+: (.+?) ---", observation)
+    header = f'Searching: "{query}"'
+    if not titles:
+        return header
+    bullet_list = "\n".join(f"  - {title.strip()}" for title in titles)
+    return f"{header}\n\nSources found:\n{bullet_list}"
 max_research_iterations = 6
 
 # Lazy initialization — model is None until first use inside NAT's runtime context
@@ -78,7 +94,8 @@ def tool_node(state: ResearcherState):
 
         observations.append(observation)
         if tool_name == "tavily_search" and isinstance(observation, str) and observation.strip():
-            ui_messages.append(observation)
+            query = tool_args.get("query", "") if isinstance(tool_args, dict) else ""
+            ui_messages.append(_format_search_ui_message(query, observation))
 
     # Create ToolMessage objects for the next model input
     tool_outputs = [
