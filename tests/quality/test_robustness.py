@@ -188,10 +188,9 @@ def test_ainvoke_structured_recovers_from_malformed_first_response():
             return AIMessage(content="Sorry, I cannot answer that. {broken json")
         return await original_ainvoke(messages, **kwargs)
 
-    real_model.ainvoke = poisoned_ainvoke
-
     messages = [HumanMessage(content="Is this a safe research question about climate change?")]
-    result = asyncio.run(ainvoke_structured(real_model, GuardrailDecision, messages))
+    with patch.object(real_model, "ainvoke", side_effect=poisoned_ainvoke):
+        result = asyncio.run(ainvoke_structured(real_model, GuardrailDecision, messages))
 
     assert isinstance(result, GuardrailDecision), "Did not recover from malformed first response"
     assert call_count["n"] >= 2, "Retry was never triggered"
