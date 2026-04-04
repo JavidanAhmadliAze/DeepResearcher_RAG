@@ -178,19 +178,18 @@ def test_ainvoke_structured_recovers_from_malformed_first_response():
     from src.agent_interface.schemas import GuardrailDecision
 
     real_model = create_model("guardrail_agent")
-    original_ainvoke = real_model.ainvoke
     call_count = {"n": 0}
 
-    async def poisoned_ainvoke(messages, **kwargs):
-        call_count["n"] += 1
-        if call_count["n"] == 1:
-            # Return intentionally broken JSON on the first attempt
-            return AIMessage(content="Sorry, I cannot answer that. {broken json")
-        return await original_ainvoke(messages, **kwargs)
+    class _PoisonedModel:
+        """Plain Python proxy that returns broken JSON on the first ainvoke call."""
+        async def ainvoke(self, messages, **kwargs):
+            call_count["n"] += 1
+            if call_count["n"] == 1:
+                return AIMessage(content="Sorry, I cannot answer that. {broken json")
+            return await real_model.ainvoke(messages, **kwargs)
 
     messages = [HumanMessage(content="Is this a safe research question about climate change?")]
-    with patch.object(real_model, "ainvoke", side_effect=poisoned_ainvoke):
-        result = asyncio.run(ainvoke_structured(real_model, GuardrailDecision, messages))
+    result = asyncio.run(ainvoke_structured(_PoisonedModel(), GuardrailDecision, messages))
 
     assert isinstance(result, GuardrailDecision), "Did not recover from malformed first response"
     assert call_count["n"] >= 2, "Retry was never triggered"
