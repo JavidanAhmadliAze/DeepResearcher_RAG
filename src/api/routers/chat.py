@@ -82,6 +82,8 @@ async def chat_endpoint(
 
                 if stream_type == "updates" and isinstance(stream_payload, dict):
                     for node_name, update in stream_payload.items():
+                        if not isinstance(update, dict):
+                            continue
                         current_node = resolve_node_name(namespace, node_name)
                         next_status = NODE_STATUS_MESSAGES.get(current_node)
                         if next_status and next_status != status_message:
