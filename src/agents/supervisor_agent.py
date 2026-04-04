@@ -18,7 +18,7 @@ lead_researcher_prompt = get_prompt("supervisor_agent", "lead_researcher_prompt"
 tools = [ConductResearch, ResearchComplete, think_tool, retrieve_data_with_score]
 
 # This prevents infinite loops and controls research depth per topic
-max_researcher_iterations = 6  # Calls to think_tool + ConductResearch
+max_researcher_iterations = 4  # Calls to think_tool + ConductResearch
 
 # Maximum number of concurrent research agents the supervisor can launch
 max_concurrent_researchers_unit = 3

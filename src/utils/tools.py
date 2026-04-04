@@ -16,6 +16,8 @@ summarize_webpage_prompt = get_prompt("utils","summarize_webpage_prompt")
 _tavily_client = None
 _model = None
 _lock = Lock()
+_search_cache: dict[str, list[dict]] = {}
+_cache_lock = Lock()
 
 
 def _get_tavily_client() -> TavilyClient:
@@ -56,16 +58,23 @@ def tavily_search_multiple(
     Returns:
         List of search result dictionaries
     """
-
-    # Execute searches sequentially. Note: yon can use AsyncTavilyClient to parallelize this step.
     search_docs = []
     for query in search_queries:
+        cache_key = f"{query}|{max_results}|{topic}"
+        with _cache_lock:
+            cached = _search_cache.get(cache_key)
+        if cached is not None:
+            search_docs.append(cached)
+            continue
+
         result = _get_tavily_client().search(
             query,
             max_results=max_results,
             include_raw_content=include_raw_content,
             topic=topic
         )
+        with _cache_lock:
+            _search_cache[cache_key] = result
         search_docs.append(result)
 
     return search_docs

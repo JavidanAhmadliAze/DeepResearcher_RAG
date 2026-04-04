@@ -30,7 +30,7 @@ def _format_search_ui_message(query: str, observation: str) -> str:
         return header
     bullet_list = "\n".join(f"  - {title.strip()}" for title in titles)
     return f"{header}\n\nSources found:\n{bullet_list}"
-max_research_iterations = 6
+max_research_iterations = 4
 
 # Lazy initialization — model is None until first use inside NAT's runtime context
 _model = None
@@ -152,11 +152,25 @@ async def compress_research(state: ResearcherState) -> dict:
     }
 
 
+def _search_results_are_redundant(messages: list) -> bool:
+    """Return True if the last two tavily search ToolMessages have >80% character overlap."""
+    search_results = [
+        m.content for m in messages
+        if isinstance(m, ToolMessage) and getattr(m, "name", "") == "tavily_search"
+    ]
+    if len(search_results) < 2:
+        return False
+    a, b = search_results[-2], search_results[-1]
+    if not a or not b:
+        return False
+    shorter = min(len(a), len(b))
+    # Count common characters at matching positions
+    overlap = sum(ca == cb for ca, cb in zip(a, b))
+    return (overlap / shorter) > 0.8
+
+
 def should_continue(state: ResearcherState) -> Literal["tool_node", "compress_research"]:
     """Determine whether to continue research or provide final answer.
-
-    Determines whether the agent should continue the research loop or provide
-    a final answer based on whether the LLM made tool calls.
 
     Returns:
         "tool_node": Continue to tool execution
@@ -169,10 +183,12 @@ def should_continue(state: ResearcherState) -> Literal["tool_node", "compress_re
     if completed_iterations >= max_research_iterations:
         return "compress_research"
 
-    # If the LLM makes a tool call, continue to tool execution
+    # Stop early if last two searches returned near-identical results
+    if _search_results_are_redundant(messages):
+        return "compress_research"
+
     if last_message.tool_calls:
         return "tool_node"
-    # Otherwise, compress and finish
     return "compress_research"
 
 

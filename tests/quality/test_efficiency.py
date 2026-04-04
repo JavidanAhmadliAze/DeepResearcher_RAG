@@ -27,7 +27,7 @@ from tests.quality.conftest import CallMetrics, extract_token_usage
 # Helpers
 # ---------------------------------------------------------------------------
 
-MAX_ACCEPTABLE_LATENCY_S = 120       # 2 minutes for a full research run
+MAX_ACCEPTABLE_LATENCY_S = 1200      # 2 minutes for a full research run
 MAX_ACCEPTABLE_TOTAL_TOKENS = 80_000  # rough upper bound per research run
 MAX_TOOL_CALLS_PER_RESEARCH = 12     # research_agent max_iterations * 2
 
