@@ -18,6 +18,7 @@ import asyncio
 import time
 
 import pytest
+from langchain_core.callbacks import BaseCallbackHandler
 from langchain_core.messages import HumanMessage, ToolMessage, AIMessage
 
 from tests.quality.conftest import CallMetrics, extract_token_usage
@@ -172,7 +173,7 @@ def test_full_workflow_does_not_run_away_on_tokens():
     # Collect token usage via a simple callback
     token_counts = {"prompt": 0, "completion": 0}
 
-    class _TokenTracker:
+    class _TokenTracker(BaseCallbackHandler):
         def on_llm_end(self, response, **kwargs):
             for gen in response.generations:
                 for g in gen:
