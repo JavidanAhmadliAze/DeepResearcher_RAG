@@ -167,7 +167,7 @@ def test_full_workflow_does_not_run_away_on_tokens():
     """End-to-end workflow must not consume an unreasonable number of tokens."""
     from src.agents.workflow_executor import deep_researcher_agent
 
-    query = "Summarise recent progress in fusion energy research."
+    query = "What are the key technical milestones achieved in nuclear fusion research between 2020 and 2024, specifically in magnetic confinement and inertial confinement approaches?"
     state = {"messages": [HumanMessage(content=query)]}
 
     # Collect token usage via a simple callback
