@@ -18,7 +18,7 @@ lead_researcher_prompt = get_prompt("supervisor_agent", "lead_researcher_prompt"
 tools = [ConductResearch, ResearchComplete, think_tool, retrieve_data_with_score]
 
 # This prevents infinite loops and controls research depth per topic
-max_researcher_iterations = 4  # Calls to think_tool + ConductResearch
+max_researcher_iterations = 6  # ConductResearch sub-agent budget
 
 # Maximum number of concurrent research agents the supervisor can launch
 max_concurrent_researchers_unit = 3
@@ -131,8 +131,10 @@ async def supervisor_tools(state: SupervisorState) -> Command[Literal["superviso
                 tc for tc in tool_calls
                 if tc["name"] == "retrieve_data_with_score"
             ]
-            # Always consume budget for work cycles, including retriever-only turns,
-            # to prevent non-terminating supervisor loops.
+            # Budget is gated on ConductResearch calls only — those spawn expensive
+            # sub-agents. think_tool and retrieve_data_with_score are cheap local
+            # operations and must not block research from starting.
+            # All operations still count toward research_iterations to prevent loops.
             planned_research_steps = (
                 len(think_tool_calls)
                 + len(conduct_research_calls)
@@ -140,7 +142,7 @@ async def supervisor_tools(state: SupervisorState) -> Command[Literal["superviso
             )
             remaining_budget = max_researcher_iterations - research_iterations
 
-            if planned_research_steps > remaining_budget:
+            if len(conduct_research_calls) > remaining_budget:
                 should_end = True
                 next_step = END
             else:
