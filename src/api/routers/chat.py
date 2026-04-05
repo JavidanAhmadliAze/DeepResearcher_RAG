@@ -61,11 +61,11 @@ async def chat_endpoint(
         emitted_background_messages: set[str] = set()
         awaiting_clarification = False
         workflow_error = None
+        langfuse_cb = get_langfuse_callback()
 
         try:
             yield format_sse("status", {"message": "Starting the research workflow"})
 
-            langfuse_cb = get_langfuse_callback()
             if langfuse_cb:
                 config["callbacks"] = [langfuse_cb]
 
@@ -203,6 +203,14 @@ async def chat_endpoint(
                 "error",
                 {"message": str(exc) or "The research workflow failed before a response could finish streaming."},
             )
+        finally:
+            # Flush Langfuse traces before the task is cancelled by uvicorn.
+            # Without this, Langfuse's AsyncExitStack cleanup gets cancelled mid-flight.
+            if langfuse_cb is not None and hasattr(langfuse_cb, "flush"):
+                try:
+                    await asyncio.shield(asyncio.to_thread(langfuse_cb.flush))
+                except Exception:
+                    pass
 
     return StreamingResponse(
         stream_response(),
