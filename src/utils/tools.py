@@ -2,7 +2,7 @@ from langchain_core.tools import tool, InjectedToolArg
 from src.agent_interface.schemas import Summary
 from src.prompt_engineering.templates import get_prompt
 from typing_extensions import Literal, List, Annotated
-from tavily import TavilyClient
+from tavily import AsyncTavilyClient
 from src.llm.model_wrapper import create_model, invoke_structured
 from langchain_core.messages import HumanMessage
 from datetime import datetime
@@ -20,12 +20,12 @@ _search_cache: dict[str, list[dict]] = {}
 _cache_lock = Lock()
 
 
-def _get_tavily_client() -> TavilyClient:
+def _get_tavily_client() -> AsyncTavilyClient:
     global _tavily_client
     if _tavily_client is None:
         with _lock:
             if _tavily_client is None:
-                _tavily_client = TavilyClient(api_key=os.getenv("TAVILY_API_KEY"))
+                _tavily_client = AsyncTavilyClient(api_key=os.getenv("TAVILY_API_KEY"))
     return _tavily_client
 
 
@@ -41,7 +41,7 @@ def get_today_str() -> str:
     return datetime.now().strftime("%a %b %#d, %Y")
 
 
-def tavily_search_multiple(
+async def tavily_search_multiple(
     search_queries: List[str],
     max_results: int = 3,
     topic: Literal["general", "scientific", "tech_trend"] = "general",
@@ -67,7 +67,7 @@ def tavily_search_multiple(
             search_docs.append(cached)
             continue
 
-        result = _get_tavily_client().search(
+        result = await _get_tavily_client().search(
             query,
             max_results=max_results,
             include_raw_content=include_raw_content,
@@ -206,7 +206,7 @@ def format_search_output(summarized_results: dict) -> str:
     return formatted_output
 
 @tool(parse_docstring=True)
-def tavily_search(
+async def tavily_search(
     query: str,
     max_results: Annotated[int, InjectedToolArg] = 3,
     topic: Annotated[Literal["general", "scientific", "beauty_tech_trend" ], InjectedToolArg] = "general",
@@ -222,7 +222,7 @@ def tavily_search(
         Formatted string of search results with summaries
     """
     # Execute search for single query
-    search_results = tavily_search_multiple(
+    search_results = await tavily_search_multiple(
         [query],  # Convert single query to list for the internal function
         max_results=max_results,
         topic=topic,

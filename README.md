@@ -8,6 +8,7 @@ An AI-powered research system built with a multi-agent architecture that conduct
 
 - [Features](#features)
 - [Architecture Overview](#architecture-overview)
+- [Agent Workflow Diagram](#agent-workflow-diagram)
 - [Tech Stack](#tech-stack)
 - [AI Engineering](#ai-engineering)
   - [Agent Orchestration](#agent-orchestration)
@@ -27,10 +28,13 @@ An AI-powered research system built with a multi-agent architecture that conduct
 
 ## Features
 
-- Multi-agent research workflow with scope analysis, planning, parallel execution, and synthesis
+- Multi-agent research workflow: guardrail check → scope analysis → parallel research → synthesis
 - Real-time streaming of workflow progress and final report via Server-Sent Events (SSE)
 - Thread-based conversation history with persistent agent state across sessions
 - JWT authentication with per-user message storage
+- Safety guardrail that rejects prompt injection and off-topic requests before research begins
+- Clarification agent that asks follow-up questions when the query is ambiguous
+- Optional RAG over prior findings via Chroma Cloud vector store
 - Full observability with Langfuse tracing (token usage, latency, tool calls per agent)
 - Production-ready deployment on Azure App Service with GitHub Actions CI/CD
 
@@ -39,26 +43,80 @@ An AI-powered research system built with a multi-agent architecture that conduct
 ## Architecture Overview
 
 ```
-User Request (HTTP)
-       │
-       ▼
-  FastAPI Backend
-       │
-       ▼
-  Scope Agent ──► Clarify or Write Research Brief
-       │
-       ▼
-  Supervisor Agent ──► Plan research topics
-       │
-       ├──► Research Agent 1 (async)
-       ├──► Research Agent 2 (async)   ◄── Parallel via asyncio.gather
-       └──► Research Agent 3 (async)
-       │
-       ▼
-  Final Report Generator ──► Streams response via SSE
-       │
-       ▼
-  PostgreSQL (Chat History + LangGraph Checkpoints)
+User Request (HTTP POST /chat)
+         │
+         ▼
+   FastAPI Backend (SSE stream)
+         │
+         ▼
+   Guardrail Agent ──► Reject unsafe / off-topic queries
+         │
+         ▼
+   Scope Agent
+   ├── clarify_with_user  ──► Ask follow-up if query is ambiguous → END (awaits reply)
+   └── write_research_brief ──► Transform conversation into a structured research brief
+         │
+         ▼
+   Supervisor Agent (up to 6 iterations)
+   ├── think_tool            (chain-of-thought reasoning)
+   ├── retrieve_data_with_score  (RAG over prior findings, optional)
+   ├── ConductResearch ──► Research Agent 1 (async) ─┐
+   ├── ConductResearch ──► Research Agent 2 (async) ─┤ asyncio.gather
+   └── ConductResearch ──► Research Agent 3 (async) ─┘
+         │
+         ▼ (compressed findings returned)
+   Final Report Generator (deepseek-reasoner)
+         │
+         ▼
+   SSE stream → Frontend
+         │
+         ▼
+   PostgreSQL (Chat History + LangGraph Checkpoints)
+```
+
+---
+
+## Agent Workflow Diagram
+
+```mermaid
+flowchart TD
+    User([User Message]) --> API[FastAPI /chat]
+    API --> Guardrail[Guardrail Agent\nPrompt injection check]
+
+    Guardrail -->|unsafe| Reject([Reject with message])
+    Guardrail -->|safe| Scope[Scope Agent]
+
+    Scope --> Clarify[clarify_with_user\nAmbiguity check]
+    Clarify -->|needs clarification| AskUser([Return question to user])
+    Clarify -->|clear enough| Brief[write_research_brief\nStructure the research question]
+
+    Brief --> Supervisor[Supervisor Agent\nmax 6 iterations]
+
+    Supervisor --> Think[think_tool\nChain-of-thought]
+    Supervisor --> RAG[retrieve_data_with_score\nChroma Cloud RAG - optional]
+    Supervisor --> Conduct[ConductResearch\nSpawn research subagents]
+
+    Conduct --> R1[Research Agent 1\nmax 4 iterations]
+    Conduct --> R2[Research Agent 2\nmax 4 iterations]
+    Conduct --> R3[Research Agent 3\nmax 4 iterations]
+
+    R1 --> Search1[tavily_search\n+ think_tool loop]
+    R2 --> Search2[tavily_search\n+ think_tool loop]
+    R3 --> Search3[tavily_search\n+ think_tool loop]
+
+    Search1 --> Compress1[compress_research]
+    Search2 --> Compress2[compress_research]
+    Search3 --> Compress3[compress_research]
+
+    Compress1 --> Supervisor
+    Compress2 --> Supervisor
+    Compress3 --> Supervisor
+
+    Supervisor -->|ResearchComplete or budget exhausted| FinalReport[Final Report Generator\ndeepseek-reasoner]
+
+    FinalReport --> SSE[SSE Stream\ncharacter-by-character]
+    SSE --> DB[(PostgreSQL\nChat History + Checkpoints)]
+    SSE --> Frontend([Frontend UI])
 ```
 
 ---
@@ -75,6 +133,7 @@ User Request (HTTP)
 | Database | PostgreSQL 16 |
 | ORM | SQLAlchemy 2.0 (async) |
 | Agent State Checkpointing | LangGraph AsyncPostgresSaver |
+| Vector Store (optional RAG) | Chroma Cloud |
 | Auth | JWT (python-jose) |
 | Streaming | Server-Sent Events (SSE) |
 | Frontend | Next.js 14, Tailwind CSS |
@@ -93,53 +152,63 @@ The system uses a **hierarchical multi-agent architecture** built on LangGraph. 
 #### Agent Hierarchy
 
 ```
-1. Scope Agent
-   ├── clarify_with_user  → asks follow-up questions if the query is ambiguous
-   └── write_research_brief → transforms the conversation into a structured research brief
+1. Guardrail Agent
+   └── Inspects the latest user message for prompt injection and off-topic content
+       Returns GuardrailDecision(is_safe, rejection_message)
+       Blocks the workflow entirely if unsafe — no research is started
 
-2. Supervisor Agent
-   ├── Decides which topics to research (up to 6 decision iterations)
-   ├── Spawns up to 3 parallel Research Agents via ConductResearch tool
-   ├── Uses think_tool for internal chain-of-thought reasoning
-   └── Uses retrieve_data_with_score for RAG over prior findings
+2. Scope Agent
+   ├── clarify_with_user  → LLM decides if the query needs a follow-up question
+   │                        If yes: returns question to user and halts (awaiting_clarification=True)
+   └── write_research_brief → Transforms the full conversation into a structured research brief
+                              The brief is passed directly as the first supervisor message
 
-3. Research Agent (per topic, spawned by Supervisor)
-   ├── Runs tavily_search + think_tool in an iterative loop (max 6 iterations)
-   └── Compresses findings into a structured ResearchOutput
+3. Supervisor Agent (subgraph, max 6 decision iterations)
+   ├── think_tool                  → Internal chain-of-thought, no external calls
+   ├── retrieve_data_with_score    → RAG over Chroma Cloud (skipped if ENABLE_RAG=false)
+   ├── ConductResearch             → Spawns 1–3 Research Agents in parallel via asyncio.gather
+   └── ResearchComplete            → Signals research is done, triggers final report
 
-4. Final Report Generator
-   ├── Synthesizes all research notes using deepseek-reasoner
-   └── Streams final output character-by-character via SSE
+4. Research Agent (per topic, spawned by Supervisor, max 4 iterations)
+   ├── llm_call   → Decides whether to search or stop
+   ├── tool_node  → Executes tavily_search (with Tavily pre-extracted snippets) + think_tool
+   └── compress_research → Summarizes all findings into a concise compressed_research string
+                           Raw notes also extracted for final report detail
+
+5. Final Report Generator
+   ├── Uses deepseek-reasoner for high-quality synthesis
+   ├── Receives all compressed findings + raw notes + research brief
+   └── Streams output character-by-character via SSE
 ```
 
 #### Key Design Decisions
 
 | Decision | Rationale |
 |---|---|
-| **Async-first** | `asyncio.gather` runs multiple Research Agents in parallel — concurrent topic research without blocking |
-| **Budget control** | Supervisor iteration limit (6) + per-agent iteration limit (6) prevent runaway costs and infinite loops |
+| **Guardrail before scope** | Blocks unsafe queries before any expensive LLM calls are made |
+| **Async-first research** | `asyncio.gather` runs multiple Research Agents in parallel — concurrent topic research without blocking |
+| **Budget control** | Supervisor iteration limit (6) + per-agent iteration limit (4) prevent runaway costs and infinite loops |
 | **Command-based routing** | LangGraph `Command` objects route between nodes dynamically based on agent decisions, not static edges |
-| **Structured outputs** | Pydantic schemas enforce typed agent outputs (scope decisions, research findings, supervisor actions) to prevent hallucinated tool calls |
-| **Modular agents** | Each agent (`scope`, `supervisor`, `research`, `final_reporter`) is an independent module — testable and replaceable |
-| **Model routing** | `model_config.yaml` maps each agent role to a specific model, temperature, and token budget — decouples orchestration from model selection |
+| **Structured outputs** | Pydantic schemas (`ClarifyWithUser`, `ResearchQuestion`, `GuardrailDecision`, `Summary`) enforce typed LLM outputs to prevent hallucinated tool calls |
+| **Modular agents** | Each agent (`guardrail`, `scope`, `supervisor`, `research`, `final_reporter`) is an independent module — testable and replaceable |
+| **Model routing** | `model_config.yaml` maps each agent role to a specific model, temperature, token budget, and timeout — decouples orchestration from model selection |
 | **YAML prompt templates** | All prompts centralized in `prompt_templates.yaml` and loaded at module init — enables prompt versioning without touching business logic |
+| **Tavily snippets only** | `include_raw_content=False` uses Tavily's pre-extracted text snippets instead of raw HTML — prevents context explosion from full page content |
+| **Tool result truncation** | Each tool result is capped at 12,000 chars; supervisor ToolMessages capped at 20,000 chars; final findings capped at 80,000 chars — stays within DeepSeek's 131K context limit |
 
 #### Workflow Execution
 
-When a user sends a message, the [workflow_executor.py](src/agents/workflow_executor.py) compiles the LangGraph state machine and invokes it:
+When a user sends a message, [workflow_executor.py](src/agents/workflow_executor.py) compiles the LangGraph state machine and invokes it:
 
 ```python
-graph = StateGraph(ResearchState)
-graph.add_node("scope", scope_node)
-graph.add_node("supervisor", supervisor_node)
-graph.add_node("research", research_node)
-graph.add_node("final_report", final_report_node)
-compiled = graph.compile(checkpointer=postgres_checkpointer)
+deep_researcher_agent = compile_deep_researcher(checkpointer=postgres_checkpointer)
 
 # Each user thread resumes from its persisted checkpoint
-async for event in compiled.astream(
-    {"messages": [user_message]},
-    config={"configurable": {"thread_id": thread_id}}
+async for event in deep_researcher_agent.astream(
+    {"messages": [HumanMessage(content=user_message)]},
+    config={"configurable": {"thread_id": thread_id}},
+    stream_mode=["updates", "messages"],
+    subgraphs=True,
 ):
     yield format_sse_event(event)
 ```
@@ -159,24 +228,26 @@ async for event in compiled.astream(
 
 #### How It Works
 
-Langfuse's `CallbackHandler` is injected into every model in [src/llm/model_wrapper.py](src/llm/model_wrapper.py). It hooks into LangChain's callback system and automatically captures the full execution trace without any agent-level changes:
+Langfuse's `CallbackHandler` is injected into every model in [src/llm/model_wrapper.py](src/llm/model_wrapper.py). It hooks into LangChain's callback system and automatically captures the full execution trace:
 
 ```python
-from langfuse.callback import CallbackHandler
+from langfuse.langchain import CallbackHandler
 
-def get_model(role: str):
+def create_model(agent_name: str) -> ChatOpenAI:
     callbacks = []
-    if langfuse_keys_configured():
+    if os.getenv("LANGFUSE_PUBLIC_KEY"):
         callbacks.append(CallbackHandler())
     return ChatOpenAI(..., callbacks=callbacks)
 ```
+
+The handler is also flushed explicitly at the end of each SSE stream (shielded from uvicorn task cancellation) to prevent trace loss on client disconnect.
 
 Langfuse is **fully optional** — if the environment variables are absent, the system runs without tracing and raises no errors.
 
 #### What You Can Monitor
 
 - Token consumption broken down by agent, model, and session
-- End-to-end latency per phase (scope → supervisor → research → synthesis)
+- End-to-end latency per phase (guardrail → scope → supervisor → research → synthesis)
 - Full prompt/completion pairs for debugging agent behavior
 - Parallel research agent traces showing which topics were investigated and in what order
 
@@ -205,6 +276,7 @@ chat_history → id, user_id (FK), thread_id, role, content, created_at
 
 - Retrieved on `GET /history/{thread_id}` for UI rendering
 - Supports multiple named threads per user (sidebar thread list)
+- DB write is wrapped in `asyncio.shield()` so it completes even if the client disconnects mid-stream
 
 #### Layer 2 — Agent State Checkpointing (LangGraph AsyncPostgresSaver)
 
@@ -241,23 +313,29 @@ DeepResearchAssistant/
 │   │   ├── main.py                  # FastAPI app, lifespan, CORS, middleware
 │   │   ├── routers/
 │   │   │   ├── auth.py              # /register, /login
-│   │   │   ├── chat.py              # /chat (SSE stream)
-│   │   │   ├── history.py           # /history, /threads
+│   │   │   ├── chat.py              # /chat (SSE stream), Langfuse flush on cleanup
+│   │   │   ├── history.py           # /history/{thread_id}, /threads
 │   │   │   └── health.py            # /health
-│   │   ├── schemas.py               # Pydantic request/response models
+│   │   ├── schemas.py               # Pydantic request/response models (ChatRequest)
 │   │   ├── security.py              # JWT creation & verification
-│   │   └── streaming.py             # SSE event formatting, status messages
+│   │   └── streaming.py             # SSE event formatting, node status messages
 │   ├── agents/
-│   │   ├── supervisor_agent.py      # Supervisor node, tool dispatch, iteration control
-│   │   ├── research_agent.py        # Per-topic research loop, search, compress findings
+│   │   ├── guardrail_agent.py       # Prompt injection & off-topic detection
 │   │   ├── scope_agent.py           # clarify_with_user & write_research_brief nodes
+│   │   ├── supervisor_agent.py      # Supervisor loop, tool dispatch, iteration control
+│   │   ├── research_agent.py        # Per-topic research loop, Tavily search, compress findings
 │   │   └── workflow_executor.py     # LangGraph graph compilation, final report generation
 │   ├── agent_interface/
 │   │   ├── states.py                # LangGraph TypedDict state classes
+│   │   │                            #   AgentInputState, AgentOutputState,
+│   │   │                            #   SupervisorState, ResearcherState, ResearcherOutputState
 │   │   ├── tools.py                 # ConductResearch, ResearchComplete tool definitions
-│   │   └── schemas.py               # Pydantic schemas for structured LLM outputs
+│   │   └── schemas.py               # Pydantic structured output schemas
+│   │                                #   ClarifyWithUser, ResearchQuestion,
+│   │                                #   GuardrailDecision, Summary
 │   ├── llm/
-│   │   └── model_wrapper.py         # Model factory, Langfuse callback injection
+│   │   └── model_wrapper.py         # Model factory, Langfuse callback injection,
+│   │                                # ainvoke_structured / invoke_structured helpers
 │   ├── db/
 │   │   ├── database.py              # SQLAlchemy engine, async session, checkpointer init
 │   │   ├── models.py                # User, ChatMessage ORM models
@@ -265,24 +343,31 @@ DeepResearchAssistant/
 │   │       ├── chat_repository.py   # Chat history read/write
 │   │       └── user_repository.py   # User lookup and creation
 │   ├── config/
-│   │   ├── model_config.yaml        # Agent → model routing, temperatures, token budgets
-│   │   └── prompt_templates.yaml    # All agent system prompts
+│   │   ├── model_config.yaml        # Agent → model routing, temperatures, token budgets, timeouts
+│   │   └── prompt_templates.yaml    # All agent system prompts (versioned, no logic changes needed)
 │   ├── utils/
-│   │   └── tools.py                 # tavily_search, think_tool, summarize_webpage
+│   │   └── tools.py                 # tavily_search, think_tool, summarize_webpage_content
+│   │                                # Tavily cache, deduplication, result formatting
 │   ├── data_retriever/
-│   │   └── output_retriever.py      # retrieve_data_with_score (RAG over prior findings)
+│   │   └── output_retriever.py      # retrieve_data_with_score — RAG over Chroma Cloud
+│   │                                # Disabled by default (ENABLE_RAG=false)
+│   ├── prompt_engineering/
+│   │   └── templates.py             # get_prompt() loader for prompt_templates.yaml
 │   └── frontend/                    # Next.js 14 app
 │       ├── app/
 │       │   ├── page.tsx             # Main chat UI
+│       │   ├── types.ts             # TypeScript types for SSE events, messages, threads
 │       │   └── components/          # Message, Sidebar, AuthModal, SourceCard
 │       └── package.json
 ├── tests/
 │   ├── unit/
 │   └── integration/
+├── docs/
+│   └── agent_quality.md             # Agent quality evaluation notes
 ├── docker-compose.yml
 ├── Dockerfile
 ├── pyproject.toml
-└── .github/workflows/
+└── .github/workflows/               # GitHub Actions CI/CD
 ```
 
 ---
@@ -295,6 +380,7 @@ DeepResearchAssistant/
 - A [DeepSeek API key](https://platform.deepseek.com)
 - A [Tavily API key](https://tavily.com)
 - (Optional) A [Langfuse](https://langfuse.com) account for tracing
+- (Optional) A [Chroma Cloud](https://trychroma.com) account for RAG
 
 ### Environment Variables
 
@@ -318,6 +404,12 @@ NEXT_PUBLIC_API_URL=http://localhost:8000
 LANGFUSE_PUBLIC_KEY=pk-lf-...
 LANGFUSE_SECRET_KEY=sk-lf-...
 LANGFUSE_BASE_URL=https://cloud.langfuse.com
+
+# Optional — RAG over prior findings (Chroma Cloud)
+ENABLE_RAG=false
+CHROMA_CLOUD_HOST=...
+CHROMA_CLOUD_API_KEY=...
+CHROMA_CLOUD_PORT=443
 ```
 
 ### Running with Docker Compose
@@ -384,14 +476,14 @@ NEXT_PUBLIC_API_URL=http://localhost:8000 npm run dev
 
 **SSE Event Types:**
 
-| Event | Description |
-|---|---|
-| `status` | Workflow phase updates (scope check, planning, researching, synthesizing) |
-| `scope_message` | Clarification question from the Scope Agent |
-| `background_message` | Tool execution details (search queries, intermediate findings) |
-| `content` | Final report delta chunks (streamed character-by-character) |
-| `error` | Workflow failure with error message |
-| `done` | Stream complete |
+| Event | Payload | Description |
+|---|---|---|
+| `status` | `{ node, message }` | Workflow phase updates (scope check, planning, researching, synthesizing) |
+| `scope_message` | `{ node, content }` | Clarification question or scope confirmation from Scope Agent |
+| `background_message` | `{ node, content }` | Tool execution details (search queries, sources found) |
+| `content` | `{ delta }` | Final report delta chunks (streamed character-by-character) |
+| `error` | `{ message }` | Workflow failure with error message |
+| `done` | `{ thread_id, awaiting_clarification }` | Stream complete |
 
 ### History
 
