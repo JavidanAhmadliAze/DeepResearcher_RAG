@@ -33,11 +33,13 @@ def create_model(agent_name: str) -> ChatOpenAI:
     if os.getenv("LANGFUSE_PUBLIC_KEY"):
         callbacks.append(CallbackHandler())
     
+    timeout = cfg.get("timeout", 120)
     return ChatOpenAI(
         model=cfg.get("model", "deepseek-chat"),
         temperature=cfg.get("temperature", 0.0),
         max_tokens=cfg.get("max_tokens", 8000),
-        timeout=cfg.get("timeout", 30),
+        timeout=timeout,
+        request_timeout=timeout,
         api_key=os.getenv("DEEPSEEK_API_KEY"),
         base_url="https://api.deepseek.com",
         streaming=True,
