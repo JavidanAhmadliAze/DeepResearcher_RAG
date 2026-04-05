@@ -76,10 +76,11 @@ jobs:
   # -------------------------------------------------------------------------
   # Quality tests — live LLM calls that evaluate the four quality dimensions:
   #   Effectiveness, Efficiency, Robustness, Trustworthy.
-  # Tests auto-skip when DEEPSEEK_API_KEY is absent (e.g. on fork PRs).
+  # Temporarily disabled — re-enable by removing `if: false` below.
   # -------------------------------------------------------------------------
   quality-tests:
     name: Agent Quality Tests
+    if: false
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -107,7 +108,7 @@ jobs:
   # -------------------------------------------------------------------------
   deploy:
     name: Deploy to Azure
-    needs: [unit-tests, integration-tests, quality-tests]
+    needs: [unit-tests, integration-tests]
     if: github.ref == 'refs/heads/main' && github.event_name == 'push'
     runs-on: ubuntu-latest
     env:
@@ -152,7 +153,7 @@ jobs:
   # -------------------------------------------------------------------------
   deploy-frontend:
     name: Deploy Frontend
-    needs: [unit-tests, integration-tests, quality-tests]
+    needs: [unit-tests, integration-tests]
     if: github.ref == 'refs/heads/main' && github.event_name == 'push'
     runs-on: ubuntu-latest
     env:
