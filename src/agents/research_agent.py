@@ -85,12 +85,17 @@ async def tool_node(state: ResearcherState):
     observations = []
     ui_messages = []
 
+    MAX_TOOL_CHARS = 12_000  # ~3,000 tokens per tool result
+
     for tool_call in tool_calls:
         tool_name = getattr(tool_call, "name", tool_call.get("name"))
         tool_args = getattr(tool_call, "args", tool_call.get("args"))
 
         t = tools_by_name[tool_name]
         observation = await t.ainvoke(tool_args)
+
+        if isinstance(observation, str) and len(observation) > MAX_TOOL_CHARS:
+            observation = observation[:MAX_TOOL_CHARS] + "\n[truncated]"
 
         observations.append(observation)
         if tool_name == "tavily_search" and isinstance(observation, str) and observation.strip():

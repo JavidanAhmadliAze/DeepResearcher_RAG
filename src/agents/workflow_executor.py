@@ -33,8 +33,11 @@ async def final_report_generation(state: AgentOutputState):
     notes = state.get("notes", [])
     raw_notes = state.get("raw_notes", [])
 
+    MAX_FINDINGS_CHARS = 80_000  # ~20,000 tokens — well within DeepSeek's 131K limit
     raw_findings = "\n".join(raw_notes)
     findings = "\n".join(notes)
+    if len(findings) > MAX_FINDINGS_CHARS:
+        findings = findings[:MAX_FINDINGS_CHARS] + "\n[additional findings truncated]"
     research_brief = state.get("research_brief", "")
 
     # Build the final report prompt

@@ -45,7 +45,7 @@ def tavily_search_multiple(
     search_queries: List[str],
     max_results: int = 3,
     topic: Literal["general", "scientific", "tech_trend"] = "general",
-    include_raw_content: bool = True,
+    include_raw_content: bool = False,
 ) -> List[dict]:
     """Perform search using Tavily API for multiple queries.
 
@@ -226,7 +226,7 @@ def tavily_search(
         [query],  # Convert single query to list for the internal function
         max_results=max_results,
         topic=topic,
-        include_raw_content=True,
+        include_raw_content=False,
     )
 
     uniqe_results = deduplicate_search_results(search_results)

@@ -79,7 +79,14 @@ async def supervisor(state: SupervisorState) -> Command[Literal["supervisor_tool
         max_concurrent_research_units=max_concurrent_researchers_unit,
     )
 
-    messages = [SystemMessage(content=system_message)] + supervisor_messages
+    MAX_TOOL_MSG_CHARS = 20_000  # cap each research result to ~5,000 tokens
+    trimmed = []
+    for m in supervisor_messages:
+        if isinstance(m, ToolMessage) and isinstance(m.content, str) and len(m.content) > MAX_TOOL_MSG_CHARS:
+            m = m.copy(update={"content": m.content[:MAX_TOOL_MSG_CHARS] + "\n[truncated]"})
+        trimmed.append(m)
+
+    messages = [SystemMessage(content=system_message)] + trimmed
     response = await model_with_tools.ainvoke(messages)
 
     return Command(
