@@ -1,3 +1,4 @@
+import asyncio
 import traceback
 from typing import AsyncGenerator
 
@@ -163,16 +164,19 @@ async def chat_endpoint(
                 if not streamed_chunks and final_content not in emitted_scope_messages:
                     yield format_sse("content", {"delta": final_content})
 
-                # Use a fresh session for the final save — the request-scoped session
-                # may be exhausted after the long-running stream.
-                async with async_session() as save_session:
-                    save_repo = ChatRepository(save_session)
-                    await save_repo.save_message(
-                        user_id=current_user.id,
-                        role="assistant",
-                        content=final_content,
-                        thread_id=chat_request.thread_id,
-                    )
+                # Shield the DB save from cancellation — if the client disconnects
+                # after streaming completes, we still want the message persisted.
+                async def _save() -> None:
+                    async with async_session() as save_session:
+                        save_repo = ChatRepository(save_session)
+                        await save_repo.save_message(
+                            user_id=current_user.id,
+                            role="assistant",
+                            content=final_content,
+                            thread_id=chat_request.thread_id,
+                        )
+
+                await asyncio.shield(_save())
 
             if awaiting_clarification:
                 yield format_sse(
@@ -190,6 +194,9 @@ async def chat_endpoint(
                     "awaiting_clarification": awaiting_clarification,
                 },
             )
+        except asyncio.CancelledError:
+            # Client disconnected or uvicorn cancelled the scope — exit cleanly.
+            return
         except Exception as exc:
             traceback.print_exc()
             yield format_sse(
