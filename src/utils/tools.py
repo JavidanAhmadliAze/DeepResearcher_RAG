@@ -7,6 +7,7 @@ from src.llm.model_wrapper import create_model, invoke_structured
 from langchain_core.messages import HumanMessage
 from datetime import datetime
 from threading import Lock
+import asyncio
 import os
 from dotenv import load_dotenv
 load_dotenv()
@@ -16,8 +17,13 @@ summarize_webpage_prompt = get_prompt("utils","summarize_webpage_prompt")
 _tavily_client = None
 _model = None
 _lock = Lock()
+# Completed results cache: cache_key -> raw Tavily response
 _search_cache: dict[str, list[dict]] = {}
-_cache_lock = Lock()
+# In-flight deduplication: cache_key -> Future holding the result being fetched.
+# Concurrent agents waiting on the same query share a single Future instead of
+# each firing a duplicate API call.
+_in_flight: dict[str, asyncio.Future] = {}
+_cache_lock = asyncio.Lock()
 
 
 def _get_tavily_client() -> AsyncTavilyClient:
@@ -61,21 +67,50 @@ async def tavily_search_multiple(
     search_docs = []
     for query in search_queries:
         cache_key = f"{query}|{max_results}|{topic}"
-        with _cache_lock:
-            cached = _search_cache.get(cache_key)
-        if cached is not None:
-            search_docs.append(cached)
+        future_to_wait: asyncio.Future | None = None
+        should_fetch = False
+
+        async with _cache_lock:
+            if cache_key in _search_cache:
+                search_docs.append(_search_cache[cache_key])
+                continue
+            if cache_key in _in_flight:
+                # Another coroutine is already fetching this query — wait for it.
+                future_to_wait = _in_flight[cache_key]
+            else:
+                # We are the first to request this key; register a Future so
+                # any concurrent agents that arrive while we're fetching will
+                # wait on us instead of firing a duplicate request.
+                future = asyncio.get_running_loop().create_future()
+                _in_flight[cache_key] = future
+                should_fetch = True
+
+        if future_to_wait is not None:
+            # Shield ensures that cancelling *this* coroutine doesn't cancel
+            # the underlying fetch that other waiters may depend on.
+            result = await asyncio.shield(future_to_wait)
+            search_docs.append(result)
             continue
 
-        result = await _get_tavily_client().search(
-            query,
-            max_results=max_results,
-            include_raw_content=include_raw_content,
-            topic=topic
-        )
-        with _cache_lock:
-            _search_cache[cache_key] = result
-        search_docs.append(result)
+        # should_fetch is True — make the API call and resolve all waiters.
+        try:
+            result = await _get_tavily_client().search(
+                query,
+                max_results=max_results,
+                include_raw_content=include_raw_content,
+                topic=topic,
+            )
+            async with _cache_lock:
+                _search_cache[cache_key] = result
+                _in_flight[cache_key].set_result(result)
+                del _in_flight[cache_key]
+            search_docs.append(result)
+        except Exception as exc:
+            async with _cache_lock:
+                if cache_key in _in_flight:
+                    _in_flight[cache_key].set_exception(exc)
+                    del _in_flight[cache_key]
+            raise
 
     return search_docs
 
